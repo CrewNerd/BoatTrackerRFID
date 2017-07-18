@@ -1,6 +1,5 @@
 import { AlienManager } from "./AlienManager";
 import { ReadConfiguration, IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
-import * as ReadLine from 'readline-sync';
 
 async function main(): Promise<void> {
     const config: IConfig = ReadConfiguration();
@@ -10,10 +9,6 @@ async function main(): Promise<void> {
     let mgr: AlienManager = new AlienManager(reader);
 
     await mgr.StartServer();
-
-    //ReadLine.question("Press <enter> to stop the server...");
-
-    //mgr.StopServer();
 }
 
 main();

@@ -156,7 +156,7 @@ export class AlienManager {
         "TagListCustomFormat=%N,%A,%k,%m",
         "NotifyFormat=Custom",
         "AutoModeReset",
-        "AutoStopTimer=3000",
+        "AutoStopTimer=1000",
         "AutoAction=Acquire",
         "AutoStartTrigger=0 0",
         "AutoStartPause=0",
@@ -189,6 +189,8 @@ export class AlienManager {
     private server: net.Server;
 
     public async StartServer(): Promise<void> {
+        await this.RunSetup();
+
         this.server = net.createServer((socket: net.Socket) => {
             socket.on('end', () => { console.info("Client disconnected"); });
             socket.on('error', (error:Error) => { console.error("Listener error"); });
@@ -199,7 +201,11 @@ export class AlienManager {
                 const pattern = /\r/g;
                 const lines: string[] = notification.replace(pattern, "").split("\n");
                 for (const line of lines) {
-                    if (!line.startsWith("#") && line.length > 2) {
+                    if (!line.startsWith("#") &&
+                        !line.includes("#Alien") &&
+                        !line.includes("No Tags") &&
+                        line.length > 2) {
+                        // TODO: process the notification
                         console.info(line);
                     }
                 }
@@ -210,8 +216,7 @@ export class AlienManager {
             console.error("server error");
         });
 
-        this.server.listen(AlienManager.NotifyPort);
-        await this.RunSetup();
+        this.server.listen(AlienManager.NotifyPort, () => console.info("Notification server listening..."));
     }
 
     public StopServer():void {
