@@ -45,40 +45,44 @@ export class AlienManager {
         this.state = State.ConnectedNeedUsernamePrompt;
     }
 
+    private incomingBuffer: string = "";
+
     private onData(buffer: Buffer) {
-        const data: string = buffer.toString();
+        this.incomingBuffer += buffer.toString();
 
         switch (this.state) {
             case State.ConnectedNeedUsernamePrompt:
-                if (data.includes("Username>")) {
+                if (this.incomingBuffer.includes("Username>")) {
                     this.state = State.ConnectedNeedPasswordPrompt;
+                    this.incomingBuffer = "";
                     this.client.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
-                } else {
-                    throw "onData: expected username prompt";
                 }
                 break;
 
             case State.ConnectedNeedPasswordPrompt:
-                if (data.includes("Password>")) {
+                if (this.incomingBuffer.includes("Password>")) {
                     this.state = State.ConnectedNeedFirstCmdPrompt;
+                    this.incomingBuffer = "";
                     this.client.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
-                } else {
-                    throw "onData: expected password prompt";
                 }
                 break;
 
             case State.ConnectedNeedFirstCmdPrompt:
-                if (data.includes("Alien >")) {
+                if (this.incomingBuffer.includes("Alien>")) {
+                    this.incomingBuffer = "";
                     this.onCommandComplete();
                 }
+                break;
 
             case State.ConnectedAndSignedIn:
-                this.addToBuffer(data);
+                this.addToBuffer(this.incomingBuffer);
+                this.incomingBuffer = "";
                 break;
 
             case State.WaitingForResponse:
-                this.addToBuffer(data);
-                if (data.includes("Alien >")) {
+                if (this.incomingBuffer.includes("Alien>")) {
+                    this.addToBuffer(this.incomingBuffer);
+                    this.incomingBuffer = "";
                     this.onCommandComplete();
                 }
                 break;
@@ -140,40 +144,42 @@ export class AlienManager {
 
             this.outputBuffer = [];
             this.state = State.WaitingForResponse;
-            this.client.write(cmd + "\r");
+            this.client.write(cmd + "\r\n");
         });
     }
 
     private setupCmds: string[] = [
-        "SetAcquireMode=Inventory",
-        "SetTagListAntennaCombine=off",
-        "SetNotifyMode=on",
-        "SetNotifyTrigger=TrueFalse",
-        "SetTagListCustomFormat=%N,%A,%k,%m",
-        "SetNotifyFormat=Custom",
-        //"AutoModeReset",
-        "SetAutoStopTimer=1000",
-        "SetAutoAction=Acquire",
-        //"SetAutoStartTrigger=0 0",
-        //"SetAutoStartPause=0",
-        "SetAutoMode=on"       // should be last
+        "AcquireMode=Inventory",
+        "TagListAntennaCombine=off",
+        "NotifyMode=on",
+        "NotifyTrigger=TrueFalse",
+        "TagListCustomFormat=%N,%A,%k,%m",
+        "NotifyFormat=Custom",
+        "AutoModeReset",
+        "AutoStopTimer=3000",
+        "AutoAction=Acquire",
+        "AutoStartTrigger=0 0",
+        "AutoStartPause=0",
+        "AutoMode=on"       // should be last
     ]
 
     private async RunSetup(): Promise<void> {
         let output: any;
 
         try {
+            console.warn("Initializing reader...");
             await this.ConnectAndSignIn();
             // Send the variable commands
-            output = await this.RunCommand(`SetReaderName=${this.readerConfig.name}`);
-            output = await this.RunCommand(`SetAntennaSequence=${this.readerConfig.antennas.join(" ")}`);
-            output = await this.RunCommand(`SetNotifyAddress=${this.client.localAddress}:${AlienManager.NotifyPort}`);
+            output = await this.RunCommand(`ReaderName=${this.readerConfig.name}`);
+            output = await this.RunCommand(`AntennaSequence=${this.readerConfig.antennas.join(" ")}`);
+            output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienManager.NotifyPort}`);
 
             // Send the fixed commands
             for (const command of this.setupCmds) {
                 output = await this.RunCommand(command);
             }
 
+            console.warn("Initialization complete!");
         } catch (error) {
             console.error("Setup error");
             throw error;
