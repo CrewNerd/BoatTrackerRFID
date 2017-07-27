@@ -1,0 +1,26 @@
+{
+  "name": "boattrackerrfid",
+  "version": "1.0.0",
+  "description": "Companion app for BoatTracker to initialize and receive events from an Alien RFID reader.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CrewNerd/BoatTrackerRFID.git"
+  },
+  "author": "Tony Andrews",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/CrewNerd/BoatTrackerRFID/issues"
+  },
+  "homepage": "https://github.com/CrewNerd/BoatTrackerRFID#readme",
+  "devDependencies": {
+    "@types/node": "^8.0.15",
+    "typescript": "^2.4.2"
+  },
+  "dependencies": {
+    "net": "^1.0.2"
+  }
+}
