@@ -15,16 +15,17 @@ export class AlienManager {
     private static DefaultPort: number = 20000;
     private static DefaultUser: string = "alien";
     private static DefaultPassword: string = "password";
+    private static NotifyPort: number = 20001;
 
     public constructor(readerConfig: IReaderConfig) {
         this.readerConfig = readerConfig;
 
-        this.socket = new net.Socket();
+        this.client = new net.Socket();
         this.state = State.Disconnected;
 
-        this.socket.on("connect", () => this.onConnect());
-        this.socket.on("data", (buffer: Buffer) => this.onData(buffer));
-        this.socket.on("error", (error) => this.onError(error));
+        this.client.on("connect", () => this.onConnect());
+        this.client.on("data", (buffer: Buffer) => this.onData(buffer));
+        this.client.on("error", (error) => this.onError(error));
 
         this.outputBuffer = [];
         this.successCallback = null;
@@ -33,7 +34,7 @@ export class AlienManager {
 
     private readerConfig: IReaderConfig;
 
-    private socket: net.Socket;
+    private client: net.Socket;
     private state: State;
 
     private outputBuffer: string[];
@@ -41,19 +42,17 @@ export class AlienManager {
     private failureCallback: null | ((error: Error) => void);
 
     private onConnect() {
-        console.warn("connected");
         this.state = State.ConnectedNeedUsernamePrompt;
     }
 
     private onData(buffer: Buffer) {
         const data: string = buffer.toString();
 
-        console.warn(`onData: received = "${data}`);
         switch (this.state) {
             case State.ConnectedNeedUsernamePrompt:
                 if (data.includes("Username>")) {
                     this.state = State.ConnectedNeedPasswordPrompt;
-                    this.socket.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
+                    this.client.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
                 } else {
                     throw "onData: expected username prompt";
                 }
@@ -62,7 +61,7 @@ export class AlienManager {
             case State.ConnectedNeedPasswordPrompt:
                 if (data.includes("Password>")) {
                     this.state = State.ConnectedNeedFirstCmdPrompt;
-                    this.socket.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
+                    this.client.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
                 } else {
                     throw "onData: expected password prompt";
                 }
@@ -124,7 +123,7 @@ export class AlienManager {
 
             // this starts the process that will take us through connection
             // and sign-in, and eventually call one of the callbacks.
-            this.socket.connect(
+            this.client.connect(
                 this.readerConfig.port || AlienManager.DefaultPort,
                 this.readerConfig.address || AlienManager.DefaultHost);
         });
@@ -141,26 +140,26 @@ export class AlienManager {
 
             this.outputBuffer = [];
             this.state = State.WaitingForResponse;
-            this.socket.write(cmd + "\r");
+            this.client.write(cmd + "\r");
         });
     }
 
     private setupCmds: string[] = [
-        "SetTagListCustomFormat=%N,%A,%k,%m",
         "SetAcquireMode=Inventory",
-        //"SetTagListAntennaCombine=off",
+        "SetTagListAntennaCombine=off",
         "SetNotifyMode=on",
         "SetNotifyTrigger=TrueFalse",
+        "SetTagListCustomFormat=%N,%A,%k,%m",
         "SetNotifyFormat=Custom",
         //"AutoModeReset",
         "SetAutoStopTimer=1000",
         "SetAutoAction=Acquire",
         //"SetAutoStartTrigger=0 0",
-        "SetAutoStartPause=0",
+        //"SetAutoStartPause=0",
         "SetAutoMode=on"       // should be last
     ]
 
-    public async RunSetup(): Promise<void> {
+    private async RunSetup(): Promise<void> {
         let output: any;
 
         try {
@@ -168,7 +167,7 @@ export class AlienManager {
             // Send the variable commands
             output = await this.RunCommand(`SetReaderName=${this.readerConfig.name}`);
             output = await this.RunCommand(`SetAntennaSequence=${this.readerConfig.antennas.join(" ")}`);
-            output = await this.RunCommand(`SetNotifyAddress=${this.socket.localAddress}:20001`);
+            output = await this.RunCommand(`SetNotifyAddress=${this.client.localAddress}:${AlienManager.NotifyPort}`);
 
             // Send the fixed commands
             for (const command of this.setupCmds) {
@@ -177,6 +176,40 @@ export class AlienManager {
 
         } catch (error) {
             console.error("Setup error");
+            throw error;
         }
+    }
+
+    private server: net.Server;
+
+    public async StartServer(): Promise<void> {
+        this.server = net.createServer((socket: net.Socket) => {
+            socket.on('end', () => { console.info("Client disconnected"); });
+            socket.on('error', (error:Error) => { console.error("Listener error"); });
+
+            socket.on('data', (data: Buffer) => {
+                const notification: string = data.toString();
+
+                const pattern = /\r/g;
+                const lines: string[] = notification.replace(pattern, "").split("\n");
+                for (const line of lines) {
+                    if (!line.startsWith("#") && line.length > 2) {
+                        console.info(line);
+                    }
+                }
+            });
+        });
+
+        this.server.on('error', (err: Error) => {
+            console.error("server error");
+        });
+
+        this.server.listen(AlienManager.NotifyPort);
+        await this.RunSetup();
+    }
+
+    public StopServer():void {
+        this.server.close();
+        this.client.destroy();
     }
 }

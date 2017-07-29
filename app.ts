@@ -1,42 +1,19 @@
 import { AlienManager } from "./AlienManager";
 import { ReadConfiguration, IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
+import * as ReadLine from 'readline-sync';
 
-function doSetup(): void {
+async function main(): Promise<void> {
     const config: IConfig = ReadConfiguration();
 
     // take the first reader for now...
     const reader: IReaderConfig = config.readers[0];
     let mgr: AlienManager = new AlienManager(reader);
 
-    mgr.RunSetup();
-}
+    await mgr.StartServer();
 
-function doListen(): void {
-}
+    //ReadLine.question("Press <enter> to stop the server...");
 
-
-function main(): void {
-    if (process.argv.length !== 3) {
-        usage();
-    }
-
-    switch (process.argv[2]) {
-        case "setup":
-            doSetup();
-            break;
-
-        case "listen":
-            doListen();
-            break;
-
-        default:
-            usage();
-    }
-}
-
-function usage(): void {
-    console.error("usage: node app setup|listen");
-    process.exit(1);
+    //mgr.StopServer();
 }
 
 main();
