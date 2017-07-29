@@ -1,0 +1,24 @@
+{
+    "clubId": "SRA",
+    "hostUrl": "http://boattrackerbot.azurewebsites.net",
+    "rfidPassword": "foo",
+    "readers": [
+        {
+            "name": "SRA-Alien1",
+            "type": "Alien",
+            "username": "alien",
+            "password": "password",
+            "address": "localhost",
+            "port": 20000,
+            "antennas": [0, 1]
+        }
+    ],
+    "doors": [
+        {
+            "name": "Small Boat Bay",
+            "readerName": "SRA-Alien1",
+            "innerAntenna": 0,
+            "outerAntenna": 1
+        }
+    ]
+}

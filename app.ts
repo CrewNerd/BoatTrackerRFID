@@ -1,27 +1,17 @@
-import { AlienManager } from './AlienManager';
+import { AlienManager } from "./AlienManager";
+import { ReadConfiguration, IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
 
 function doSetup(): void {
-    let mgr: AlienManager = new AlienManager();
+    const config: IConfig = ReadConfiguration();
 
-    mgr.Connect((error: Error | null) => {
-        if (error !== null) {
-            console.error("Connect error");
-        } else {
-            mgr.RunCommand("t", (error: Error | null) => {
-                if (error !== null) {
-                    console.error("Command failed");
-                } else {
-                    console.info("Command finished");
-                }
-            });
-        }
+    // take the first reader for now...
+    const reader: IReaderConfig = config.readers[0];
+    let mgr: AlienManager = new AlienManager(reader);
 
-        console.warn("Connect finished");
-    })
+    mgr.RunSetup();
 }
 
 function doListen(): void {
-
 }
 
 

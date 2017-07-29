@@ -1,4 +1,5 @@
 import * as net from 'net';
+import { IReaderConfig } from "./ConfigManager";
 
 enum State {
     Disconnected,
@@ -10,16 +11,13 @@ enum State {
 }
 
 export class AlienManager {
-    public constructor(
-        host: string = "localhost",
-        port: number = 20000,
-        username: string = "alien",
-        password: string = "password")
-    {
-        this.host = host;
-        this.port = port;
-        this.username = username;
-        this.password = password;
+    private static DefaultHost: string = "localhost";
+    private static DefaultPort: number = 20000;
+    private static DefaultUser: string = "alien";
+    private static DefaultPassword: string = "password";
+
+    public constructor(readerConfig: IReaderConfig) {
+        this.readerConfig = readerConfig;
 
         this.socket = new net.Socket();
         this.state = State.Disconnected;
@@ -29,19 +27,18 @@ export class AlienManager {
         this.socket.on("error", (error) => this.onError(error));
 
         this.outputBuffer = [];
-        this.clientCallback = null;
+        this.successCallback = null;
+        this.failureCallback = null;
     }
 
-    private host: string;
-    private port: number;
-    private username: string;
-    private password: string;
+    private readerConfig: IReaderConfig;
 
     private socket: net.Socket;
     private state: State;
 
     private outputBuffer: string[];
-    private clientCallback: null | ((error: Error | null) => void);
+    private successCallback: null | ((value: any) => void);
+    private failureCallback: null | ((error: Error) => void);
 
     private onConnect() {
         console.warn("connected");
@@ -56,7 +53,7 @@ export class AlienManager {
             case State.ConnectedNeedUsernamePrompt:
                 if (data.includes("Username>")) {
                     this.state = State.ConnectedNeedPasswordPrompt;
-                    this.socket.write(this.username + "\n");
+                    this.socket.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
                 } else {
                     throw "onData: expected username prompt";
                 }
@@ -65,7 +62,7 @@ export class AlienManager {
             case State.ConnectedNeedPasswordPrompt:
                 if (data.includes("Password>")) {
                     this.state = State.ConnectedNeedFirstCmdPrompt;
-                    this.socket.write(this.password + "\n");
+                    this.socket.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
                 } else {
                     throw "onData: expected password prompt";
                 }
@@ -73,10 +70,7 @@ export class AlienManager {
 
             case State.ConnectedNeedFirstCmdPrompt:
                 if (data.includes("Alien >")) {
-                    this.state = State.ConnectedAndSignedIn;
-                    if (this.clientCallback !== null) {
-                        this.clientCallback(null);
-                    }
+                    this.onCommandComplete();
                 }
 
             case State.ConnectedAndSignedIn:
@@ -85,57 +79,104 @@ export class AlienManager {
 
             case State.WaitingForResponse:
                 this.addToBuffer(data);
-                if (data.includes("\nAlien >")) {
+                if (data.includes("Alien >")) {
                     this.onCommandComplete();
                 }
                 break;
         }
-
     }
 
     private addToBuffer(data: string) {
-        const lines: string[] = data.split("\n");
-        this.outputBuffer.push(data);
+        const pattern = /\r/g;
+        const lines: string[] = data.replace(pattern, "").split("\n");
+        for (const line of lines) {
+            this.outputBuffer.push(line);
+        }
     }
 
     private onError(error: Error) {
         console.error(`error: ${error.name} / ${error.message}`);
-        if (this.clientCallback !== null) {
-            this.clientCallback(error);
-            this.clientCallback = null;
+        if (this.failureCallback !== null) {
+            this.failureCallback(error);
+            this.failureCallback = null;
         }
     }
 
     private onCommandComplete() {
-        if (this.clientCallback !== null) {
-            this.clientCallback(null);
-            this.clientCallback = null;
+        this.state = State.ConnectedAndSignedIn;
+        var output = this.outputBuffer.slice(1, this.outputBuffer.length - 2);
+
+        if (this.successCallback !== null) {
+            // only return the actual output from the command
+            this.successCallback(output);
+            this.successCallback = null;
         }
     }
 
-    public Connect(onConnected: (error: Error | null) => void) {
+    public async ConnectAndSignIn(): Promise<void> {
         if (this.state != State.Disconnected) {
             throw "AlienManager: already connected";
         }
 
-        this.clientCallback = onConnected;
-        this.socket.connect(this.port, this.host);
+        return new Promise<void>((resolve, reject) => {
+            this.successCallback = resolve;
+            this.failureCallback = reject;
+
+            // this starts the process that will take us through connection
+            // and sign-in, and eventually call one of the callbacks.
+            this.socket.connect(
+                this.readerConfig.port || AlienManager.DefaultPort,
+                this.readerConfig.address || AlienManager.DefaultHost);
+        });
     }
 
-    public RunCommand(cmd: string, onComplete: (error: Error | null) => void) {
+    public async RunCommand(cmd: string): Promise<void> {
         if (this.state != State.ConnectedAndSignedIn) {
             throw "AlienManager: must be connected to call RunCommand";
         }
 
-        this.outputBuffer = [];
-        this.clientCallback = onComplete;
-        this.state = State.WaitingForResponse;
-        this.socket.write(cmd + "\r");
+        return new Promise<void>((resolve, reject) => {
+            this.successCallback = resolve;
+            this.failureCallback = reject;
+
+            this.outputBuffer = [];
+            this.state = State.WaitingForResponse;
+            this.socket.write(cmd + "\r");
+        });
     }
 
-    public GetOutput(): string[] {
-        const output: string[] = this.outputBuffer;
-        this.outputBuffer = [];
-        return output;
+    private setupCmds: string[] = [
+        "SetTagListCustomFormat=%N,%A,%k,%m",
+        "SetAcquireMode=Inventory",
+        //"SetTagListAntennaCombine=off",
+        "SetNotifyMode=on",
+        "SetNotifyTrigger=TrueFalse",
+        "SetNotifyFormat=Custom",
+        //"AutoModeReset",
+        "SetAutoStopTimer=1000",
+        "SetAutoAction=Acquire",
+        //"SetAutoStartTrigger=0 0",
+        "SetAutoStartPause=0",
+        "SetAutoMode=on"       // should be last
+    ]
+
+    public async RunSetup(): Promise<void> {
+        let output: any;
+
+        try {
+            await this.ConnectAndSignIn();
+            // Send the variable commands
+            output = await this.RunCommand(`SetReaderName=${this.readerConfig.name}`);
+            output = await this.RunCommand(`SetAntennaSequence=${this.readerConfig.antennas.join(" ")}`);
+            output = await this.RunCommand(`SetNotifyAddress=${this.socket.localAddress}:20001`);
+
+            // Send the fixed commands
+            for (const command of this.setupCmds) {
+                output = await this.RunCommand(command);
+            }
+
+        } catch (error) {
+            console.error("Setup error");
+        }
     }
 }
