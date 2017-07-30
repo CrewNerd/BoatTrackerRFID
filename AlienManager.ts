@@ -188,14 +188,23 @@ export class AlienManager {
 
     private server: net.Server;
 
+    private notificationCounter: number = 0;
+
     public async StartServer(): Promise<void> {
         await this.RunSetup();
 
         this.server = net.createServer((socket: net.Socket) => {
-            socket.on('end', () => { console.info("Client disconnected"); });
-            socket.on('error', (error:Error) => { console.error("Listener error"); });
+            socket.on("connect", () => console.info("Reader connected"));
+            socket.on('end', () => console.info("Reader disconnected"));
+            socket.on('error', (error:Error) => {
+                console.error(`Incoming connection error: ${error.name}/'${error.message}'`);
+            });
 
             socket.on('data', (data: Buffer) => {
+                this.notificationCounter++;
+                if ((this.notificationCounter % 10) == 0) { process.stdout.write("."); }
+                if ((this.notificationCounter % 800) == 0) { process.stdout.write(".\r\n"); }
+
                 const notification: string = data.toString();
 
                 const pattern = /\r/g;
@@ -212,8 +221,8 @@ export class AlienManager {
             });
         });
 
-        this.server.on('error', (err: Error) => {
-            console.error("server error");
+        this.server.on('error', (error: Error) => {
+            console.error(`Notification server error: ${error.name}/'${error.message}'`);
         });
 
         this.server.listen(AlienManager.NotifyPort, () => console.info("Notification server listening..."));
