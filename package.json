@@ -21,6 +21,7 @@
     "typescript": "^2.4.2"
   },
   "dependencies": {
+    "fs": "0.0.1-security",
     "net": "^1.0.2"
   }
 }

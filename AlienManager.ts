@@ -1,4 +1,4 @@
-import * as net from 'net';
+import * as net from "net";
 import { IReaderConfig } from "./ConfigManager";
 
 enum State {
@@ -41,13 +41,13 @@ export class AlienManager {
     private successCallback: null | ((value: any) => void);
     private failureCallback: null | ((error: Error) => void);
 
-    private onConnect() {
+    private onConnect(): void {
         this.state = State.ConnectedNeedUsernamePrompt;
     }
 
     private incomingBuffer: string = "";
 
-    private onData(buffer: Buffer) {
+    private onData(buffer: Buffer): void {
         this.incomingBuffer += buffer.toString();
 
         switch (this.state) {
@@ -89,15 +89,15 @@ export class AlienManager {
         }
     }
 
-    private addToBuffer(data: string) {
-        const pattern = /\r/g;
+    private addToBuffer(data: string): void {
+        const pattern: RegExp = /\r/g;
         const lines: string[] = data.replace(pattern, "").split("\n");
         for (const line of lines) {
             this.outputBuffer.push(line);
         }
     }
 
-    private onError(error: Error) {
+    private onError(error: Error): void {
         console.error(`error: ${error.name} / ${error.message}`);
         if (this.failureCallback !== null) {
             this.failureCallback(error);
@@ -105,9 +105,9 @@ export class AlienManager {
         }
     }
 
-    private onCommandComplete() {
+    private onCommandComplete(): void {
         this.state = State.ConnectedAndSignedIn;
-        var output = this.outputBuffer.slice(1, this.outputBuffer.length - 2);
+        var output: string[] = this.outputBuffer.slice(1, this.outputBuffer.length - 2);
 
         if (this.successCallback !== null) {
             // only return the actual output from the command
@@ -117,7 +117,7 @@ export class AlienManager {
     }
 
     public async ConnectAndSignIn(): Promise<void> {
-        if (this.state != State.Disconnected) {
+        if (this.state !== State.Disconnected) {
             throw "AlienManager: already connected";
         }
 
@@ -134,7 +134,7 @@ export class AlienManager {
     }
 
     public async RunCommand(cmd: string): Promise<void> {
-        if (this.state != State.ConnectedAndSignedIn) {
+        if (this.state !== State.ConnectedAndSignedIn) {
             throw "AlienManager: must be connected to call RunCommand";
         }
 
@@ -153,15 +153,15 @@ export class AlienManager {
         "TagListAntennaCombine=off",
         "NotifyMode=on",
         "NotifyTrigger=TrueFalse",
-        "TagListCustomFormat=%N,%A,%k,%m",
+        "TagListCustomFormat=${TIME2},%N,%A,%k,%m",
         "NotifyFormat=Custom",
         "AutoModeReset",
-        "AutoStopTimer=1000",
+        "AutoStopTimer=500",
         "AutoAction=Acquire",
         "AutoStartTrigger=0 0",
         "AutoStartPause=0",
         "AutoMode=on"       // should be last
-    ]
+    ];
 
     private async RunSetup(): Promise<void> {
         let output: any;
@@ -169,12 +169,12 @@ export class AlienManager {
         try {
             console.warn("Initializing reader...");
             await this.ConnectAndSignIn();
-            // Send the variable commands
+            // send the variable commands
             output = await this.RunCommand(`ReaderName=${this.readerConfig.name}`);
             output = await this.RunCommand(`AntennaSequence=${this.readerConfig.antennas.join(" ")}`);
             output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienManager.NotifyPort}`);
 
-            // Send the fixed commands
+            // send the fixed commands
             for (const command of this.setupCmds) {
                 output = await this.RunCommand(command);
             }
@@ -194,38 +194,38 @@ export class AlienManager {
         await this.RunSetup();
 
         this.server = net.createServer((socket: net.Socket) => {
-            socket.on("connect", () => console.info("Reader connected"));
-            socket.on('end', () => console.info("Reader disconnected"));
-            socket.on('error', (error:Error) => {
+            socket.on("connect", () => console.warn("Reader connected"));
+            socket.on("end", () => console.warn("Reader disconnected"));
+            socket.on("error", (error:Error) => {
                 console.error(`Incoming connection error: ${error.name}/'${error.message}'`);
             });
 
-            socket.on('data', (data: Buffer) => {
+            socket.on("data", (data: Buffer) => {
                 this.notificationCounter++;
-                if ((this.notificationCounter % 10) == 0) { process.stdout.write("."); }
-                if ((this.notificationCounter % 800) == 0) { process.stdout.write(".\r\n"); }
+                if ((this.notificationCounter % 10) === 0) { process.stdout.write("."); }
+                if ((this.notificationCounter % 800) === 0) { process.stdout.write(".\r\n"); }
 
                 const notification: string = data.toString();
 
-                const pattern = /\r/g;
+                const pattern: RegExp = /\r/g;
                 const lines: string[] = notification.replace(pattern, "").split("\n");
                 for (const line of lines) {
                     if (!line.startsWith("#") &&
                         !line.includes("#Alien") &&
                         !line.includes("No Tags") &&
-                        line.length > 2) {
-                        // TODO: process the notification
-                        console.info(line);
+                        line.length > 3) {
+                        // todo: process the notification
+                        console.warn(line);
                     }
                 }
             });
         });
 
-        this.server.on('error', (error: Error) => {
+        this.server.on("error", (error: Error) => {
             console.error(`Notification server error: ${error.name}/'${error.message}'`);
         });
 
-        this.server.listen(AlienManager.NotifyPort, () => console.info("Notification server listening..."));
+        this.server.listen(AlienManager.NotifyPort, () => console.warn("Notification server listening..."));
     }
 
     public StopServer():void {

@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from "fs";
 
 export interface IReaderConfig {
     name: string;
@@ -22,12 +22,12 @@ export interface IConfig {
     hostUrl: string;
     rfidPassword: string;
     readers: IReaderConfig[];
-    doors: IDoorConfig
+    doors: IDoorConfig;
 }
 
 export function ReadConfiguration(file: string = "config.json"): IConfig {
     const configData: string = fs.readFileSync(file, { encoding: "utf8" });
 
-    // TODO: validate the config format
+    // todo: validate the config format
     return <IConfig> JSON.parse(configData);
 }
