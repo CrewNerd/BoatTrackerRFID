@@ -10,15 +10,14 @@
             "password": "password",
             "address": "192.168.1.143",
             "port": 20000,
-            "antennas": [0, 1]
-        }
-    ],
-    "doors": [
-        {
-            "name": "Small Boat Bay",
-            "readerName": "SRA-Alien1",
-            "innerAntenna": 0,
-            "outerAntenna": 1
+            "antennas": [0, 1],
+            "doors": [
+                {
+                    "name": "Small Boat Bay",
+                    "innerAntenna": 0,
+                    "outerAntenna": 1
+                }
+            ]
         }
     ]
 }

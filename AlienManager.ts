@@ -1,5 +1,6 @@
 import * as net from "net";
 import { IReaderConfig } from "./ConfigManager";
+import { NotificationManager } from "./NotificationManager";
 
 enum State {
     Disconnected,
@@ -15,6 +16,7 @@ export class AlienManager {
     private static DefaultPort: number = 20000;
     private static DefaultUser: string = "alien";
     private static DefaultPassword: string = "password";
+
     private static NotifyPort: number = 20001;
 
     public constructor(readerConfig: IReaderConfig) {
@@ -30,9 +32,12 @@ export class AlienManager {
         this.outputBuffer = [];
         this.successCallback = null;
         this.failureCallback = null;
+
+        this.notifMgr = new NotificationManager(this.readerConfig);
     }
 
     private readerConfig: IReaderConfig;
+    private notifMgr: NotificationManager;
 
     private client: net.Socket;
     private state: State;
@@ -41,59 +46,54 @@ export class AlienManager {
     private successCallback: null | ((value: any) => void);
     private failureCallback: null | ((error: Error) => void);
 
+    private responseBuffer: string = "";
+
+    private server: net.Server;
+    private notificationCounter: number = 0;
+
     private onConnect(): void {
         this.state = State.ConnectedNeedUsernamePrompt;
     }
 
-    private incomingBuffer: string = "";
-
     private onData(buffer: Buffer): void {
-        this.incomingBuffer += buffer.toString();
+        this.responseBuffer += buffer.toString();
 
         switch (this.state) {
             case State.ConnectedNeedUsernamePrompt:
-                if (this.incomingBuffer.includes("Username>")) {
+                if (this.responseBuffer.includes("Username>")) {
                     this.state = State.ConnectedNeedPasswordPrompt;
-                    this.incomingBuffer = "";
+                    this.responseBuffer = "";
                     this.client.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
                 }
                 break;
 
             case State.ConnectedNeedPasswordPrompt:
-                if (this.incomingBuffer.includes("Password>")) {
+                if (this.responseBuffer.includes("Password>")) {
                     this.state = State.ConnectedNeedFirstCmdPrompt;
-                    this.incomingBuffer = "";
+                    this.responseBuffer = "";
                     this.client.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
                 }
                 break;
 
             case State.ConnectedNeedFirstCmdPrompt:
-                if (this.incomingBuffer.includes("Alien>")) {
-                    this.incomingBuffer = "";
+                if (this.responseBuffer.includes("Alien>")) {
+                    this.responseBuffer = "";
                     this.onCommandComplete();
                 }
                 break;
 
             case State.ConnectedAndSignedIn:
-                this.addToBuffer(this.incomingBuffer);
-                this.incomingBuffer = "";
+                this.addToBuffer(this.responseBuffer);
+                this.responseBuffer = "";
                 break;
 
             case State.WaitingForResponse:
-                if (this.incomingBuffer.includes("Alien>")) {
-                    this.addToBuffer(this.incomingBuffer);
-                    this.incomingBuffer = "";
+                if (this.responseBuffer.includes("Alien>")) {
+                    this.addToBuffer(this.responseBuffer);
+                    this.responseBuffer = "";
                     this.onCommandComplete();
                 }
                 break;
-        }
-    }
-
-    private addToBuffer(data: string): void {
-        const pattern: RegExp = /\r/g;
-        const lines: string[] = data.replace(pattern, "").split("\n");
-        for (const line of lines) {
-            this.outputBuffer.push(line);
         }
     }
 
@@ -102,6 +102,14 @@ export class AlienManager {
         if (this.failureCallback !== null) {
             this.failureCallback(error);
             this.failureCallback = null;
+        }
+    }
+
+    private addToBuffer(data: string): void {
+        const pattern: RegExp = /\r/g;
+        const lines: string[] = data.replace(pattern, "").split("\n");
+        for (const line of lines) {
+            this.outputBuffer.push(line);
         }
     }
 
@@ -116,7 +124,7 @@ export class AlienManager {
         }
     }
 
-    public async ConnectAndSignIn(): Promise<void> {
+    private async ConnectAndSignIn(): Promise<void> {
         if (this.state !== State.Disconnected) {
             throw "AlienManager: already connected";
         }
@@ -133,7 +141,7 @@ export class AlienManager {
         });
     }
 
-    public async RunCommand(cmd: string): Promise<void> {
+    private async RunCommand(cmd: string): Promise<void> {
         if (this.state !== State.ConnectedAndSignedIn) {
             throw "AlienManager: must be connected to call RunCommand";
         }
@@ -186,10 +194,6 @@ export class AlienManager {
         }
     }
 
-    private server: net.Server;
-
-    private notificationCounter: number = 0;
-
     public async StartServer(): Promise<void> {
         await this.RunSetup();
 
@@ -209,15 +213,21 @@ export class AlienManager {
 
                 const pattern: RegExp = /\r/g;
                 const lines: string[] = notification.replace(pattern, "").split("\n");
+                let notifications: string[] = [];
                 for (const line of lines) {
                     if (!line.startsWith("#") &&
                         !line.includes("#Alien") &&
                         !line.includes("No Tags") &&
                         line.length > 3) {
-                        // todo: process the notification
+                        // queue the notification for processing
+                        notifications.push(line);
                         console.warn(line);
                     }
                 }
+
+                // the notifications list may be empty. we still need to call the notification
+                // manager so it can process any pending timeouts.
+                this.notifMgr.processNotifications(notifications);
             });
         });
 

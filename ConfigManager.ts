@@ -1,5 +1,11 @@
 import * as fs from "fs";
 
+export interface IDoorConfig {
+    name: string;
+    innerAntenna: number;
+    outerAntenna: number;
+}
+
 export interface IReaderConfig {
     name: string;
     type: string;
@@ -8,13 +14,7 @@ export interface IReaderConfig {
     address?: string;
     port?: number;
     antennas: number[];
-}
-
-export interface IDoorConfig {
-    name: string;
-    readerName: string;
-    innerAntenna: number;
-    outerAntenna: number;
+    doors: IDoorConfig[];
 }
 
 export interface IConfig {
@@ -22,7 +22,6 @@ export interface IConfig {
     hostUrl: string;
     rfidPassword: string;
     readers: IReaderConfig[];
-    doors: IDoorConfig;
 }
 
 export function ReadConfiguration(file: string = "config.json"): IConfig {
