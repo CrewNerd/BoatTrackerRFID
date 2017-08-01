@@ -75,7 +75,11 @@ export class NotificationManager {
     public processNotifications(notifications: string[]): void {
         for (const notification of notifications) {
             console.warn(notification);
+            try {
             this.processTagRead(new Notification(notification, this.readerConfig));
+            } catch (err) {
+                // ignore notifications with invalid formats
+            }
         }
 
         this.processTimeouts();

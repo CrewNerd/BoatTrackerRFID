@@ -14,8 +14,8 @@
             "doors": [
                 {
                     "name": "Small Boat Bay",
-                    "innerAntenna": 0,
-                    "outerAntenna": 1
+                    "innerAntenna": 1,
+                    "outerAntenna": 0
                 }
             ]
         }
