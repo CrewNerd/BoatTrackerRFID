@@ -1,4 +1,10 @@
-import { IReaderConfig, IDoorConfig } from "./ConfigManager";
+import { IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
+import * as request from "request";
+
+enum AntennaType {
+    Inner,
+    Outer
+}
 
 class Notification {
     constructor(notification: string, readerConfig: IReaderConfig) {
@@ -32,11 +38,16 @@ class Notification {
 
         throw "Error: antenna not found!";
     }
-}
 
-enum AntennaType {
-    Inner,
-    Outer
+    get DoorName(): string {
+        for (const door of this.readerConfig.doors) {
+            if (door.innerAntenna === this.antenna || door.outerAntenna === this.antenna) {
+                return door.name;
+            }
+        }
+
+        throw "Error: antenna not found!";
+    }
 }
 
 enum TagState {
@@ -48,28 +59,59 @@ enum TagState {
     InPending
 }
 
+// format of the messages we send to the BoatTracker service
+interface IHostEvent {
+    EPC: string;
+    ReadTime: string;
+    Direction: string;
+    Location: string;
+    ReadZone: string;
+
+    // unused
+    Process: string;
+    HostName: string;
+    ReadCount: string;
+    RSSI: string;
+    AntennaPortNumber: string;
+}
+
+// a null transition occurs when a tag is not seen at any antenna for this period of time
 const NullTransitionTimeout: number = 2000;
+
+// an outbound transition occurs when a tag is in the OutPending state for this time span
 const OutboundTransitionTimeout: number = 3000;
+
+// an inbound transition occurs when a tag is in the InPending state for this time span
 const InboundTransitionTimeout: number = 3000;
 
+// used to track tags that have been seen recently by the reader
 class TagRecord {
-    constructor(state: TagState, lastUpdate: number) {
+    constructor(state: TagState, doorName: string, lastUpdate: number) {
         this.state = state;
+        this.doorName = doorName;
         this.lastUpdate = lastUpdate;
     }
 
     public state: TagState;
     public lastUpdate: number;
+    public doorName: string;
 }
 
+// the notification manager receives raw notification events from the reader manager
+// and turns them into digested in/out events that are passed along to the BoatTracker
+// service.
 export class NotificationManager {
-    constructor(readerConfig: IReaderConfig) {
+    constructor(config: IConfig, readerConfig: IReaderConfig) {
+        this.config = config;
         this.readerConfig = readerConfig;
         this.tags = new Map<string, TagRecord>();
+        this.queuedBoatMessages = [];
     }
 
     private tags: Map<string, TagRecord>;
+    private queuedBoatMessages: IHostEvent[];
 
+    private config: IConfig;
     private readerConfig: IReaderConfig;
 
     public processNotifications(notifications: string[]): void {
@@ -83,6 +125,7 @@ export class NotificationManager {
         }
 
         this.processTimeouts();
+        this.flushBoatMessages();
     }
 
     private processTagRead(n: Notification): void {
@@ -90,6 +133,7 @@ export class NotificationManager {
         if (!this.tags.has(n.tagId)) {
             this.tags.set(n.tagId, new TagRecord(
                 n.AntennaType === AntennaType.Inner ? TagState.InnerAntennaOutbound : TagState.OuterAntennaInbound,
+                n.DoorName,
                 Date.now()
             ));
             return;
@@ -98,6 +142,8 @@ export class NotificationManager {
         // process tag state update
         let tagRecord: TagRecord = <TagRecord>this.tags.get(n.tagId);
         tagRecord.lastUpdate = Date.now();
+
+        // todo: deal with spurious reads from antennas in adjacent doors
 
         switch (tagRecord.state) {
             case TagState.InnerAntennaInbound:
@@ -220,5 +266,43 @@ export class NotificationManager {
                     this.tags.delete(tagId);
                 }
         }
+    }
+
+    // queue an outgoing message to the BoatTracker service
+    private queueBoatMessage(tagId: string, isEgress: boolean, doorName: string): void {
+        this.queuedBoatMessages.push({
+            EPC: tagId,
+            ReadTime: (new Date()).toISOString(),
+            Direction: isEgress ? "OUT" : "IN",
+            Location: this.config.clubId,
+            ReadZone: doorName,
+
+            // todo - these were needed for TagMatiks - remove them
+            Process: "BoatTrackerRfid",
+            HostName: "clubId",
+            ReadCount: "1",
+            RSSI: "0",
+            AntennaPortNumber: "?",
+        });
+    }
+
+    // send pending messages to the server and clear the pending queue
+    private flushBoatMessages(): void {
+        request({
+            url: this.config.hostUrl + "/api/rfid/events",
+            headers: {
+                "Authorization": `${this.config.clubId}:${this.config.rfidPassword}`,
+            },
+            method: "POST",
+            json: true,   // <--Very important!!!
+            body: this.queuedBoatMessages
+        }, (error: any, response: request.RequestResponse, body: any): void => {
+            if (response.statusCode === 200) {
+                // todo - is there a race condition here?
+                this.queuedBoatMessages = [];
+            } else {
+                console.error(`Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
+            }
+        });
     }
 }

@@ -1,5 +1,5 @@
 import * as net from "net";
-import { IReaderConfig } from "./ConfigManager";
+import { IConfig, IReaderConfig } from "./ConfigManager";
 import { NotificationManager } from "./NotificationManager";
 
 enum State {
@@ -19,7 +19,8 @@ export class AlienManager {
 
     private static NotifyPort: number = 20001;
 
-    public constructor(readerConfig: IReaderConfig) {
+    public constructor(config: IConfig, readerConfig: IReaderConfig) {
+        this.config = config;
         this.readerConfig = readerConfig;
 
         this.client = new net.Socket();
@@ -33,9 +34,10 @@ export class AlienManager {
         this.successCallback = null;
         this.failureCallback = null;
 
-        this.notifMgr = new NotificationManager(this.readerConfig);
+        this.notifMgr = new NotificationManager(this.config, this.readerConfig);
     }
 
+    private config: IConfig;
     private readerConfig: IReaderConfig;
     private notifMgr: NotificationManager;
 

@@ -18,10 +18,12 @@
   "homepage": "https://github.com/CrewNerd/BoatTrackerRFID#readme",
   "devDependencies": {
     "@types/node": "^8.0.15",
+    "@types/request": "^2.0.0",
     "typescript": "^2.4.2"
   },
   "dependencies": {
     "fs": "0.0.1-security",
-    "net": "^1.0.2"
+    "net": "^1.0.2",
+    "request": "^2.81.0"
   }
 }

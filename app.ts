@@ -6,7 +6,7 @@ async function main(): Promise<void> {
 
     // take the first reader for now...
     const reader: IReaderConfig = config.readers[0];
-    let mgr: AlienManager = new AlienManager(reader);
+    let mgr: AlienManager = new AlienManager(config, reader);
 
     await mgr.StartServer();
 }
