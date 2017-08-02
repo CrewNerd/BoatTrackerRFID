@@ -1,7 +1,7 @@
 {
     "clubId": "SRA",
-    "hostUrl": "http://boattrackerbot.azurewebsites.net",
-    "rfidPassword": "foo",
+    "hostUrl": "http://boattrackerbot-dev.azurewebsites.net",
+    "rfidPassword": "abcdefgh",
     "readers": [
         {
             "name": "SRA-Alien1",

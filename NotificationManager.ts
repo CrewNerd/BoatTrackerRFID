@@ -66,13 +66,6 @@ interface IHostEvent {
     Direction: string;
     Location: string;
     ReadZone: string;
-
-    // unused
-    Process: string;
-    HostName: string;
-    ReadCount: string;
-    RSSI: string;
-    AntennaPortNumber: string;
 }
 
 // a null transition occurs when a tag is not seen at any antenna for this period of time
@@ -275,14 +268,7 @@ export class NotificationManager {
             ReadTime: (new Date()).toISOString(),
             Direction: isEgress ? "OUT" : "IN",
             Location: this.config.clubId,
-            ReadZone: doorName,
-
-            // todo - these were needed for TagMatiks - remove them
-            Process: "BoatTrackerRfid",
-            HostName: "clubId",
-            ReadCount: "1",
-            RSSI: "0",
-            AntennaPortNumber: "?",
+            ReadZone: doorName
         });
     }
 
@@ -291,7 +277,7 @@ export class NotificationManager {
         request({
             url: this.config.hostUrl + "/api/rfid/events",
             headers: {
-                "Authorization": `${this.config.clubId}:${this.config.rfidPassword}`,
+                "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
             },
             method: "POST",
             json: true,   // <--Very important!!!
