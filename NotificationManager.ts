@@ -281,7 +281,7 @@ export class NotificationManager {
                     "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
                 },
                 method: "POST",
-                json: true,   // <--Very important!!!
+                json: true,
                 body: this.queuedBoatMessages
             }, (error: any, response: request.RequestResponse, body: any): void => {
                 if (response.statusCode === 200) {
