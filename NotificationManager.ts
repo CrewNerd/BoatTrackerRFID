@@ -274,21 +274,23 @@ export class NotificationManager {
 
     // send pending messages to the server and clear the pending queue
     private flushBoatMessages(): void {
-        request({
-            url: this.config.hostUrl + "/api/rfid/events",
-            headers: {
-                "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
-            },
-            method: "POST",
-            json: true,   // <--Very important!!!
-            body: this.queuedBoatMessages
-        }, (error: any, response: request.RequestResponse, body: any): void => {
-            if (response.statusCode === 200) {
-                // todo - is there a race condition here?
-                this.queuedBoatMessages = [];
-            } else {
-                console.error(`Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
-            }
-        });
+        if (this.queuedBoatMessages.length > 0) {
+            request({
+                url: this.config.hostUrl + "/api/rfid/events",
+                headers: {
+                    "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
+                },
+                method: "POST",
+                json: true,   // <--Very important!!!
+                body: this.queuedBoatMessages
+            }, (error: any, response: request.RequestResponse, body: any): void => {
+                if (response.statusCode === 200) {
+                    // todo - is there a race condition here?
+                    this.queuedBoatMessages = [];
+                } else {
+                    console.error(`Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
+                }
+            });
+        }
     }
 }
