@@ -1,7 +1,7 @@
 import * as net from "net";
 import { RfidReader } from "./RfidReader";
 import { IConfig, IReaderConfig } from "./ConfigManager";
-import { NotificationManager } from "./NotificationManager";
+import { Notification, NotificationManager } from "./NotificationManager";
 
 enum State {
     Disconnected,
@@ -228,7 +228,7 @@ export class AlienReader extends RfidReader {
 
                 // the notifications list may be empty. we still need to call the notification
                 // manager so it can process any pending timeouts.
-                this.notifMgr.processNotifications(notifications);
+                this.dispatchNotifications(notifications);
             });
         });
 
@@ -239,6 +239,33 @@ export class AlienReader extends RfidReader {
         this.server.listen(AlienReader.NotifyPort, () => console.warn("Notification server listening..."));
     }
 
+    /**
+     * Process raw notifications from the reader and send a digested list to the
+     * NotificationManager for processing.
+     * @param rawNotifications Notifications as received from the reader
+     */
+    private dispatchNotifications(rawNotifications: string[]): void {
+        let notifications: Notification[] = [];
+        for (const rawNotification of rawNotifications) {
+            console.warn(rawNotification);
+            const fields: string[] = rawNotification.split(",");
+
+            if (fields.length === 5) {
+                notifications.push(new Notification(
+                    this.readerConfig,
+                    fields[3],
+                    Number(fields[2]),
+                    Number(fields[4])
+                ));
+            }
+        }
+
+        // todo: look for multiple reads of the same tag and select the antenna
+        // with the highest rssi for the tag.
+
+        this.notifMgr.processNotifications(notifications);
+    }
+    
     public StopReader():void {
         this.server.close();
         this.client.destroy();

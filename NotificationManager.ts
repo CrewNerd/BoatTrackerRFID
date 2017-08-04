@@ -6,27 +6,26 @@ enum AntennaType {
     Outer
 }
 
-// todo: this shouldn't be reader-specific
-class Notification {
-    constructor(notification: string, readerConfig: IReaderConfig) {
-        const notificationFields: string[] = notification.split(",");
-
-        if (notificationFields.length !== 5) {
-            throw "Invalid notification string";
-        }
-
+/**
+ * Represents a generic notification of a tag read.
+ */
+export class Notification {
+    constructor(readerConfig: IReaderConfig, tagId: string, antenna: number, rssi: number) {
         this.readerConfig = readerConfig;
-        this.reader = notificationFields[1];
-        this.antenna = Number(notificationFields[2]);
-        this.tagId = notificationFields[3];
-        this.rssi = Number(notificationFields[4]);
+        this.antenna = antenna
+        this.tagId = tagId;
+        this.rssi = rssi;
     }
 
     private readerConfig: IReaderConfig;
-    public reader: string;
+
     public antenna: number;
     public tagId: string;
     public rssi: number;
+
+    get reader(): string {
+        return this.readerConfig.name;
+    }
 
     get AntennaType():AntennaType {
         for (const door of this.readerConfig.doors) {
@@ -60,7 +59,7 @@ enum TagState {
     InPending
 }
 
-// format of the messages we send to the BoatTracker service
+/** format of the messages we send to the BoatTracker service */
 interface IHostEvent {
     EPC: string;
     ReadTime: string;
@@ -78,7 +77,7 @@ const OutboundTransitionTimeout: number = 3000;
 // an inbound transition occurs when a tag is in the InPending state for this time span
 const InboundTransitionTimeout: number = 3000;
 
-// used to track tags that have been seen recently by the reader
+/** used to track tags that have been seen recently by the reader */
 class TagRecord {
     constructor(state: TagState, doorName: string, lastUpdate: number) {
         this.state = state;
@@ -91,9 +90,10 @@ class TagRecord {
     public doorName: string;
 }
 
-// the notification manager receives raw notification events from the reader manager
-// and turns them into digested in/out events that are passed along to the BoatTracker
-// service.
+/** the notification manager receives raw notification events from the reader manager
+ * and turns them into digested in/out events that are passed along to the BoatTracker
+ * service.
+ */
 export class NotificationManager {
     constructor(config: IConfig, readerConfig: IReaderConfig) {
         this.config = config;
@@ -111,12 +111,10 @@ export class NotificationManager {
     /** Process a set of tag notifications.
      * @param notifications A list of notifications to be processed.
      */
-    public processNotifications(notifications: string[]): void {
+    public processNotifications(notifications: Notification[]): void {
         for (const notification of notifications) {
-            console.warn(notification);
             try {
-                // todo: we should get Notification objects from the readers
-                this.processTagRead(new Notification(notification, this.readerConfig));
+                this.processTagRead(notification);
             } catch (err) {
                 // ignore notifications with invalid formats
             }
