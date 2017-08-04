@@ -1,4 +1,5 @@
 import { RfidReader } from "./RfidReader";
+import { CreateReader } from "./CreateReader";
 import { ReadConfiguration, IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
 
 async function main(): Promise<void> {
@@ -8,7 +9,7 @@ async function main(): Promise<void> {
 
     // start all readers
     for (const reader of config.readers) {
-        let mgr: RfidReader = RfidReader.CreateReader(config, reader);
+        let mgr: RfidReader = CreateReader(config, reader);
         managers.set(reader.name, mgr);
         await mgr.StartReader();
     }

@@ -13,17 +13,4 @@ export abstract class RfidReader {
         this.config = config;
         this.readerConfig = readerConfig;
     }
-
-    /** Creates an instance of the appropriate RfidReader subclass based
-     * on the reader type found in the given IReaderConfig.
-     */
-    public static CreateReader(config: IConfig, readerConfig: IReaderConfig): RfidReader {
-        switch (readerConfig.type) {
-            case "Alien":
-                return new AlienReader(config, readerConfig);
-
-            default:
-                throw `Unknown reader type: ${readerConfig.type}`
-        }
-    }
 }
