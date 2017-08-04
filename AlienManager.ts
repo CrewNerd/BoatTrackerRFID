@@ -196,7 +196,7 @@ export class AlienManager {
         }
     }
 
-    public async StartServer(): Promise<void> {
+    public async StartReader(): Promise<void> {
         await this.RunSetup();
 
         this.server = net.createServer((socket: net.Socket) => {
@@ -240,7 +240,7 @@ export class AlienManager {
         this.server.listen(AlienManager.NotifyPort, () => console.warn("Notification server listening..."));
     }
 
-    public StopServer():void {
+    public StopReader():void {
         this.server.close();
         this.client.destroy();
     }
