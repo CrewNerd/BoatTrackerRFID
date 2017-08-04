@@ -1,4 +1,5 @@
 import * as net from "net";
+import { RfidReader } from "./RfidReader";
 import { IConfig, IReaderConfig } from "./ConfigManager";
 import { NotificationManager } from "./NotificationManager";
 
@@ -11,17 +12,17 @@ enum State {
     WaitingForResponse
 }
 
-export class AlienManager {
+export class AlienReader extends RfidReader {
     private static DefaultHost: string = "localhost";
     private static DefaultPort: number = 20000;
     private static DefaultUser: string = "alien";
     private static DefaultPassword: string = "password";
 
+    // todo: this won't work for multiple Alien readers
     private static NotifyPort: number = 20001;
 
     public constructor(config: IConfig, readerConfig: IReaderConfig) {
-        this.config = config;
-        this.readerConfig = readerConfig;
+        super(config, readerConfig);
 
         this.client = new net.Socket();
         this.state = State.Disconnected;
@@ -37,8 +38,6 @@ export class AlienManager {
         this.notifMgr = new NotificationManager(this.config, this.readerConfig);
     }
 
-    private config: IConfig;
-    private readerConfig: IReaderConfig;
     private notifMgr: NotificationManager;
 
     private client: net.Socket;
@@ -65,7 +64,7 @@ export class AlienManager {
                 if (this.responseBuffer.includes("Username>")) {
                     this.state = State.ConnectedNeedPasswordPrompt;
                     this.responseBuffer = "";
-                    this.client.write((this.readerConfig.username || AlienManager.DefaultUser) + "\n");
+                    this.client.write((this.readerConfig.username || AlienReader.DefaultUser) + "\n");
                 }
                 break;
 
@@ -73,7 +72,7 @@ export class AlienManager {
                 if (this.responseBuffer.includes("Password>")) {
                     this.state = State.ConnectedNeedFirstCmdPrompt;
                     this.responseBuffer = "";
-                    this.client.write((this.readerConfig.password || AlienManager.DefaultPassword) + "\n");
+                    this.client.write((this.readerConfig.password || AlienReader.DefaultPassword) + "\n");
                 }
                 break;
 
@@ -128,7 +127,7 @@ export class AlienManager {
 
     private async ConnectAndSignIn(): Promise<void> {
         if (this.state !== State.Disconnected) {
-            throw "AlienManager: already connected";
+            throw "AlienReader: already connected";
         }
 
         return new Promise<void>((resolve, reject) => {
@@ -138,14 +137,14 @@ export class AlienManager {
             // this starts the process that will take us through connection
             // and sign-in, and eventually call one of the callbacks.
             this.client.connect(
-                this.readerConfig.port || AlienManager.DefaultPort,
-                this.readerConfig.address || AlienManager.DefaultHost);
+                this.readerConfig.port || AlienReader.DefaultPort,
+                this.readerConfig.address || AlienReader.DefaultHost);
         });
     }
 
     private async RunCommand(cmd: string): Promise<void> {
         if (this.state !== State.ConnectedAndSignedIn) {
-            throw "AlienManager: must be connected to call RunCommand";
+            throw "AlienReader: must be connected to call RunCommand";
         }
 
         return new Promise<void>((resolve, reject) => {
@@ -182,7 +181,7 @@ export class AlienManager {
             // send the variable commands
             output = await this.RunCommand(`ReaderName=${this.readerConfig.name}`);
             output = await this.RunCommand(`AntennaSequence=${this.readerConfig.antennas.join(" ")}`);
-            output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienManager.NotifyPort}`);
+            output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienReader.NotifyPort}`);
 
             // send the fixed commands
             for (const command of this.setupCmds) {
@@ -237,7 +236,7 @@ export class AlienManager {
             console.error(`Notification server error: ${error.name}/'${error.message}'`);
         });
 
-        this.server.listen(AlienManager.NotifyPort, () => console.warn("Notification server listening..."));
+        this.server.listen(AlienReader.NotifyPort, () => console.warn("Notification server listening..."));
     }
 
     public StopReader():void {

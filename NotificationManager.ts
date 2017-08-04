@@ -6,6 +6,7 @@ enum AntennaType {
     Outer
 }
 
+// todo: this shouldn't be reader-specific
 class Notification {
     constructor(notification: string, readerConfig: IReaderConfig) {
         const notificationFields: string[] = notification.split(",");
@@ -107,11 +108,15 @@ export class NotificationManager {
     private config: IConfig;
     private readerConfig: IReaderConfig;
 
+    /** Process a set of tag notifications.
+     * @param notifications A list of notifications to be processed.
+     */
     public processNotifications(notifications: string[]): void {
         for (const notification of notifications) {
             console.warn(notification);
             try {
-            this.processTagRead(new Notification(notification, this.readerConfig));
+                // todo: we should get Notification objects from the readers
+                this.processTagRead(new Notification(notification, this.readerConfig));
             } catch (err) {
                 // ignore notifications with invalid formats
             }
@@ -121,6 +126,9 @@ export class NotificationManager {
         this.flushBoatMessages();
     }
 
+    /** Process a read event for a tag. Change the tag state appropriately based on the
+     * antenna where the tag was read, and its current state.
+     */
     private processTagRead(n: Notification): void {
         // if the tag isn't being tracked, set its initial state.
         if (!this.tags.has(n.tagId)) {
@@ -207,6 +215,7 @@ export class NotificationManager {
         }
     }
 
+    /** Check all recently-observed tags for timeout conditions. */
     private processTimeouts(): void {
         const now: number = Date.now();
 
@@ -215,6 +224,7 @@ export class NotificationManager {
         });
     }
 
+    /** Check to see if a timeout condition has been reached for a given tag. */
     private checkForTagTimeout(tagId: string, tagRecord: TagRecord, now: number): void {
         const elapsedTime: number = now - tagRecord.lastUpdate;
         switch (tagRecord.state) {
@@ -261,7 +271,7 @@ export class NotificationManager {
         }
     }
 
-    // queue an outgoing message to the BoatTracker service
+    /** Queue an outgoing message to the BoatTracker service */
     private queueBoatMessage(tagId: string, isEgress: boolean, doorName: string): void {
         this.queuedBoatMessages.push({
             EPC: tagId,
@@ -272,7 +282,7 @@ export class NotificationManager {
         });
     }
 
-    // send pending messages to the server and clear the pending queue
+    /** Send pending messages to the server and clear the pending queue */
     private flushBoatMessages(): void {
         if (this.queuedBoatMessages.length > 0) {
             request({
