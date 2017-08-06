@@ -129,12 +129,14 @@ export class NotificationManager {
      */
     private processTagRead(n: Notification): void {
         // if the tag isn't being tracked, set its initial state.
+        const initialState: TagState = n.AntennaType === AntennaType.Inner ? TagState.InnerAntennaOutbound : TagState.OuterAntennaInbound;
         if (!this.tags.has(n.tagId)) {
             this.tags.set(n.tagId, new TagRecord(
-                n.AntennaType === AntennaType.Inner ? TagState.InnerAntennaOutbound : TagState.OuterAntennaInbound,
+                initialState,
                 n.DoorName,
                 Date.now()
             ));
+            console.warn(`state change: ${n.tagId}: unseen => ${initialState}`);
             return;
         }
 

@@ -246,7 +246,6 @@ export class AlienReader extends RfidReader {
     private dispatchNotifications(rawNotifications: string[]): void {
         let notifications: Notification[] = [];
         for (const rawNotification of rawNotifications) {
-            console.warn(rawNotification);
             const fields: string[] = rawNotification.split(",");
 
             if (fields.length === 5) {
