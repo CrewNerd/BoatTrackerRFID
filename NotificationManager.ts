@@ -142,6 +142,8 @@ export class NotificationManager {
         let tagRecord: TagRecord = <TagRecord>this.tags.get(n.tagId);
         tagRecord.lastUpdate = Date.now();
 
+        const oldState = tagRecord.state;
+
         // todo: deal with spurious reads from antennas in adjacent doors
 
         switch (tagRecord.state) {
@@ -211,6 +213,10 @@ export class NotificationManager {
                 }
                 break;
         }
+
+        if (oldState !== tagRecord.state) {
+            console.warn(`state change: ${n.tagId}: ${oldState} => ${tagRecord.state}`);
+        }
     }
 
     /** Check all recently-observed tags for timeout conditions. */
@@ -230,25 +236,28 @@ export class NotificationManager {
                 if (elapsedTime > NullTransitionTimeout) {
                     tagRecord.state = TagState.InPending;
                     tagRecord.lastUpdate = now;
+                    console.warn(`state change: ${tagId}: InnerAntennaInbound => InPending`);
                 }
                 break;
 
             case TagState.InnerAntennaOutbound:
                 if (elapsedTime > NullTransitionTimeout) {
+                    console.warn(`state change: ${tagId}: InnerAntennaOutbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
 
             case TagState.InPending:
                 if (elapsedTime > InboundTransitionTimeout) {
-                    // todo: send a message to the boattracker service
                     console.warn(`Ingress: ${tagId}`);
+                    this.queueBoatMessage(tagId, false, tagRecord.doorName);
                     this.tags.delete(tagId);
                 }
                 break;
 
             case TagState.OuterAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
+                    console.warn(`state change: ${tagId}: OuterAntennaInbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
@@ -257,13 +266,14 @@ export class NotificationManager {
                 if (elapsedTime > NullTransitionTimeout) {
                     tagRecord.state = TagState.OutPending;
                     tagRecord.lastUpdate = now;
+                    console.warn(`state change: ${tagId}: OuterAntennaOutbound => OutPending`);
                 }
                 break;
 
             case TagState.OutPending:
                 if (elapsedTime > OutboundTransitionTimeout) {
-                    // todo: send a message to the boattracker service
                     console.warn(`Egress:  ${tagId}`);
+                    this.queueBoatMessage(tagId, true, tagRecord.doorName);
                     this.tags.delete(tagId);
                 }
         }

@@ -222,7 +222,6 @@ export class AlienReader extends RfidReader {
                         line.length > 3) {
                         // queue the notification for processing
                         notifications.push(line);
-                        console.warn(line);
                     }
                 }
 
