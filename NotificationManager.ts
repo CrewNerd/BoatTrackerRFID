@@ -301,14 +301,14 @@ export class NotificationManager {
                     "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
                 },
                 method: "POST",
-                json: true,
-                body: this.queuedBoatMessages
+                body: JSON.stringify(this.queuedBoatMessages)
             }, (error: any, response: request.RequestResponse, body: any): void => {
                 if (response.statusCode === 200) {
                     // todo - is there a race condition here?
                     this.queuedBoatMessages = [];
                 } else {
                     console.error(`Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
+                    console.error(`body = ${response.body}`);
                 }
             });
         }
