@@ -217,7 +217,7 @@ export class NotificationManager {
         }
 
         if (oldState !== tagRecord.state) {
-            console.warn(`state change: ${n.tagId}: ${oldState} => ${tagRecord.state}`);
+            console.warn(`state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]}`);
         }
     }
 
