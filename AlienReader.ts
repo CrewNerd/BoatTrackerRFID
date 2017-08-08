@@ -50,7 +50,7 @@ export class AlienReader extends RfidReader {
     private responseBuffer: string = "";
 
     private server: net.Server;
-    private notificationCounter: number = 0;
+    //private notificationCounter: number = 0;
 
     private onConnect(): void {
         this.state = State.ConnectedNeedUsernamePrompt;
@@ -99,7 +99,7 @@ export class AlienReader extends RfidReader {
     }
 
     private onError(error: Error): void {
-        console.error(`error: ${error.name} / ${error.message}`);
+        console.error(`${(new Date()).toISOString()}: error: ${error.name} / ${error.message}`);
         if (this.failureCallback !== null) {
             this.failureCallback(error);
             this.failureCallback = null;
@@ -202,13 +202,13 @@ export class AlienReader extends RfidReader {
             socket.on("connect", () => console.warn("Reader connected"));
             socket.on("end", () => console.warn("Reader disconnected"));
             socket.on("error", (error:Error) => {
-                console.error(`Incoming connection error: ${error.name}/'${error.message}'`);
+                console.error(`${(new Date()).toISOString()}: Incoming connection error: ${error.name}/'${error.message}'`);
             });
 
             socket.on("data", (data: Buffer) => {
-                this.notificationCounter++;
-                if ((this.notificationCounter % 10) === 0) { process.stdout.write("."); }
-                if ((this.notificationCounter % 800) === 0) { process.stdout.write(".\r\n"); }
+                //this.notificationCounter++;
+                //if ((this.notificationCounter % 10) === 0) { process.stdout.write("."); }
+                //if ((this.notificationCounter % 800) === 0) { process.stdout.write(".\r\n"); }
 
                 const notification: string = data.toString();
 

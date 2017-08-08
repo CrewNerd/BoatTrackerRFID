@@ -99,11 +99,9 @@ export class NotificationManager {
         this.config = config;
         this.readerConfig = readerConfig;
         this.tags = new Map<string, TagRecord>();
-        this.queuedBoatMessages = [];
     }
 
     private tags: Map<string, TagRecord>;
-    private queuedBoatMessages: IHostEvent[];
 
     private config: IConfig;
     private readerConfig: IReaderConfig;
@@ -121,7 +119,6 @@ export class NotificationManager {
         }
 
         this.processTimeouts();
-        this.flushBoatMessages();
     }
 
     /** Process a read event for a tag. Change the tag state appropriately based on the
@@ -136,7 +133,7 @@ export class NotificationManager {
                 n.DoorName,
                 Date.now()
             ));
-            console.warn(`state change: ${n.tagId}: unseen => ${initialState}`);
+            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: unseen => ${TagState[initialState]}`);
             return;
         }
 
@@ -217,7 +214,7 @@ export class NotificationManager {
         }
 
         if (oldState !== tagRecord.state) {
-            console.warn(`state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]}`);
+            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]}`);
         }
     }
 
@@ -225,41 +222,46 @@ export class NotificationManager {
     private processTimeouts(): void {
         const now: number = Date.now();
 
+        let pendingHostEvents: IHostEvent[] = [];
+
         this.tags.forEach((value: TagRecord, key: string) => {
-            this.checkForTagTimeout(key, value, now);
+            this.checkForTagTimeout(pendingHostEvents, key, value, now);
         });
+
+        this.sendBoatMessages(pendingHostEvents);
     }
 
     /** Check to see if a timeout condition has been reached for a given tag. */
-    private checkForTagTimeout(tagId: string, tagRecord: TagRecord, now: number): void {
+    private checkForTagTimeout(pendingHostEvents: IHostEvent[], tagId: string, tagRecord: TagRecord, now: number): void {
         const elapsedTime: number = now - tagRecord.lastUpdate;
+
         switch (tagRecord.state) {
             case TagState.InnerAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
                     tagRecord.state = TagState.InPending;
                     tagRecord.lastUpdate = now;
-                    console.warn(`state change: ${tagId}: InnerAntennaInbound => InPending`);
+                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
                 }
                 break;
 
             case TagState.InnerAntennaOutbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    console.warn(`state change: ${tagId}: InnerAntennaOutbound => <null>`);
+                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaOutbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
 
             case TagState.InPending:
                 if (elapsedTime > InboundTransitionTimeout) {
-                    console.warn(`Ingress: ${tagId}`);
-                    this.queueBoatMessage(tagId, false, tagRecord.doorName);
+                    console.warn(`${(new Date()).toISOString()}: Ingress: ${tagId}`);
+                    pendingHostEvents.push(this.buildBoatMessage(tagId, false, tagRecord.doorName));
                     this.tags.delete(tagId);
                 }
                 break;
 
             case TagState.OuterAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    console.warn(`state change: ${tagId}: OuterAntennaInbound => <null>`);
+                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaInbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
@@ -268,47 +270,45 @@ export class NotificationManager {
                 if (elapsedTime > NullTransitionTimeout) {
                     tagRecord.state = TagState.OutPending;
                     tagRecord.lastUpdate = now;
-                    console.warn(`state change: ${tagId}: OuterAntennaOutbound => OutPending`);
+                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
                 }
                 break;
 
             case TagState.OutPending:
                 if (elapsedTime > OutboundTransitionTimeout) {
-                    console.warn(`Egress:  ${tagId}`);
-                    this.queueBoatMessage(tagId, true, tagRecord.doorName);
+                    console.warn(`${(new Date()).toISOString()}: Egress:  ${tagId}`);
+                    pendingHostEvents.push(this.buildBoatMessage(tagId, true, tagRecord.doorName));
                     this.tags.delete(tagId);
                 }
         }
     }
 
     /** Queue an outgoing message to the BoatTracker service */
-    private queueBoatMessage(tagId: string, isEgress: boolean, doorName: string): void {
-        this.queuedBoatMessages.push({
+    private buildBoatMessage(tagId: string, isEgress: boolean, doorName: string): IHostEvent {
+        return {
             EPC: tagId,
             ReadTime: (new Date()).toISOString(),
             Direction: isEgress ? "OUT" : "IN",
             Location: this.config.clubId,
             ReadZone: doorName
-        });
+        };
     }
 
     /** Send pending messages to the server and clear the pending queue */
-    private flushBoatMessages(): void {
-        if (this.queuedBoatMessages.length > 0) {
+    private sendBoatMessages(messages: IHostEvent[], retryCount: number = 0): void {
+        if (messages.length > 0 && retryCount < 5) {
             request({
                 url: this.config.hostUrl + "/api/rfid/events",
                 headers: {
                     "Authorization": `basic ${this.config.clubId}:${this.config.rfidPassword}`,
                 },
                 method: "POST",
-                body: JSON.stringify(this.queuedBoatMessages)
+                body: JSON.stringify(messages)
             }, (error: any, response: request.RequestResponse, body: any): void => {
-                if (response.statusCode === 200) {
-                    // todo - is there a race condition here?
-                    this.queuedBoatMessages = [];
-                } else {
-                    console.error(`Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
+                if (response.statusCode !== 200) {
+                    console.error(`${(new Date()).toISOString()}: Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
                     console.error(`body = ${response.body}`);
+                    this.sendBoatMessages(messages, retryCount + 1);
                 }
             });
         }
