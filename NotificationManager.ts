@@ -72,10 +72,15 @@ interface IHostEvent {
 const NullTransitionTimeout: number = 2000;
 
 // an outbound transition occurs when a tag is in the OutPending state for this time span
-const OutboundTransitionTimeout: number = 3000;
+const OutboundTransitionTimeout: number = 8000;
 
 // an inbound transition occurs when a tag is in the InPending state for this time span
 const InboundTransitionTimeout: number = 3000;
+
+// the number of reads by the outer antenna before we consider a transition to be real.
+// boats may live near the inner antenna, but the only time we should get multiple hits
+// on the outer antenna is when real movement is happening.
+const MinimumOuterReadCount: number = 2;
 
 /** used to track tags that have been seen recently by the reader */
 class TagRecord {
@@ -83,11 +88,13 @@ class TagRecord {
         this.state = state;
         this.doorName = doorName;
         this.lastUpdate = lastUpdate;
+        this.readsByOuterAntenna = 0;
     }
 
     public state: TagState;
     public lastUpdate: number;
     public doorName: string;
+    public readsByOuterAntenna: number;
 }
 
 /** the notification manager receives raw notification events from the reader manager
@@ -174,6 +181,7 @@ export class NotificationManager {
                         tagRecord.state = TagState.InnerAntennaInbound;
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         // no state change
                         break;
                 }
@@ -185,6 +193,7 @@ export class NotificationManager {
                         tagRecord.state = TagState.InnerAntennaOutbound;
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         // no state change
                         break;
                 }
@@ -238,9 +247,15 @@ export class NotificationManager {
         switch (tagRecord.state) {
             case TagState.InnerAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    tagRecord.state = TagState.InPending;
-                    tagRecord.lastUpdate = now;
-                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
+                    // make sure we were seen by the outer antenna a few times or it could be noise
+                    if (tagRecord.readsByOuterAntenna > MinimumOuterReadCount) {
+                        tagRecord.state = TagState.InPending;
+                        tagRecord.lastUpdate = now;
+                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
+                    } else {
+                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => <null> (noise)`);
+                        this.tags.delete(tagId);
+                    }
                 }
                 break;
 
@@ -268,9 +283,15 @@ export class NotificationManager {
 
             case TagState.OuterAntennaOutbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    tagRecord.state = TagState.OutPending;
-                    tagRecord.lastUpdate = now;
-                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
+                    // make sure we were seen by the outer antenna a few times or it could be noise
+                    if (tagRecord.readsByOuterAntenna > MinimumOuterReadCount) {
+                        tagRecord.state = TagState.OutPending;
+                        tagRecord.lastUpdate = now;
+                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
+                    } else {
+                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => <null> (noise)`);
+                        this.tags.delete(tagId);
+                    }
                 }
                 break;
 
