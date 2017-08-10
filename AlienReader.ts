@@ -165,7 +165,7 @@ export class AlienReader extends RfidReader {
         "TagListCustomFormat=${TIME2},%N,%A,%k,%m",
         "NotifyFormat=Custom",
         "AutoModeReset",
-        "AutoStopTimer=500",
+        "AutoStopTimer=400",
         "AutoAction=Acquire",
         "AutoStartTrigger=0 0",
         "AutoStartPause=0",

@@ -117,15 +117,23 @@ export class NotificationManager {
      * @param notifications A list of notifications to be processed.
      */
     public processNotifications(notifications: Notification[]): void {
+        let filteredTags: Map<string, Notification> = new Map<string, Notification>();
+
+        // if a tag is seen by multiple antennas, take only the strongest reading
         for (const notification of notifications) {
-            try {
-                this.processTagRead(notification);
-            } catch (err) {
-                // ignore notifications with invalid formats
+            let currentTagRead: Notification | undefined = filteredTags.get(notification.tagId);
+            if (currentTagRead === undefined || notification.rssi > currentTagRead.rssi) {
+                filteredTags.set(notification.tagId, notification);
             }
         }
 
-        this.processTimeouts();
+        filteredTags.forEach((value: Notification, key: string) => {
+            try {
+                this.processTagRead(value);
+            } catch (err) {
+                // ignore notifications with invalid formats
+            }
+        });
     }
 
     /** Process a read event for a tag. Change the tag state appropriately based on the
@@ -159,6 +167,7 @@ export class NotificationManager {
                         // no state change
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         tagRecord.state = TagState.OuterAntennaInbound;
                         break;
                 }
@@ -170,6 +179,7 @@ export class NotificationManager {
                         // no state chage
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         tagRecord.state = TagState.OuterAntennaOutbound;
                         break;
                 }
@@ -205,6 +215,7 @@ export class NotificationManager {
                         tagRecord.state = TagState.InnerAntennaInbound;
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         tagRecord.state = TagState.OuterAntennaInbound;
                         break;
                 }
@@ -216,6 +227,7 @@ export class NotificationManager {
                         tagRecord.state = TagState.InnerAntennaOutbound;
                         break;
                     case AntennaType.Outer:
+                        tagRecord.readsByOuterAntenna++;
                         tagRecord.state = TagState.OuterAntennaOutbound;
                         break;
                 }
@@ -248,7 +260,7 @@ export class NotificationManager {
             case TagState.InnerAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
                     // make sure we were seen by the outer antenna a few times or it could be noise
-                    if (tagRecord.readsByOuterAntenna > MinimumOuterReadCount) {
+                    if (tagRecord.readsByOuterAntenna >= MinimumOuterReadCount) {
                         tagRecord.state = TagState.InPending;
                         tagRecord.lastUpdate = now;
                         console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
@@ -284,7 +296,7 @@ export class NotificationManager {
             case TagState.OuterAntennaOutbound:
                 if (elapsedTime > NullTransitionTimeout) {
                     // make sure we were seen by the outer antenna a few times or it could be noise
-                    if (tagRecord.readsByOuterAntenna > MinimumOuterReadCount) {
+                    if (tagRecord.readsByOuterAntenna >= MinimumOuterReadCount) {
                         tagRecord.state = TagState.OutPending;
                         tagRecord.lastUpdate = now;
                         console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
