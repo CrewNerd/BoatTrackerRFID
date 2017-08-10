@@ -134,6 +134,8 @@ export class NotificationManager {
                 // ignore notifications with invalid formats
             }
         });
+
+        this.processTimeouts();
     }
 
     /** Process a read event for a tag. Change the tag state appropriately based on the
