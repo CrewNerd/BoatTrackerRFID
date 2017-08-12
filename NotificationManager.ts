@@ -1,7 +1,7 @@
 import { IConfig, IReaderConfig, IDoorConfig } from "./ConfigManager";
 import * as request from "request";
 
-enum AntennaType {
+export enum AntennaType {
     Inner,
     Outer
 }
@@ -142,6 +142,9 @@ export class NotificationManager {
      * antenna where the tag was read, and its current state.
      */
     private processTagRead(n: Notification): void {
+        // verbose logging
+        console.warn(`${(new Date()).toLocaleString()}: tag read: ${n.tagId}, antenna=${n.antenna}, rssi=${n.rssi}`);
+
         // if the tag isn't being tracked, set its initial state.
         const initialState: TagState = n.AntennaType === AntennaType.Inner ? TagState.InnerAntennaOutbound : TagState.OuterAntennaInbound;
         if (!this.tags.has(n.tagId)) {
@@ -150,7 +153,7 @@ export class NotificationManager {
                 n.DoorName,
                 Date.now()
             ));
-            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: unseen => ${TagState[initialState]} (rssi=${n.rssi})`);
+            console.warn(`${(new Date()).toLocaleString()}: state change: ${n.tagId}: unseen => ${TagState[initialState]} (rssi=${n.rssi})`);
             return;
         }
 
@@ -237,7 +240,7 @@ export class NotificationManager {
         }
 
         if (oldState !== tagRecord.state) {
-            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]} (rssi=${n.rssi})`);
+            console.warn(`${(new Date()).toLocaleString()}: state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]} (rssi=${n.rssi})`);
         }
     }
 
@@ -265,9 +268,9 @@ export class NotificationManager {
                     if (tagRecord.readsByOuterAntenna >= MinimumOuterReadCount) {
                         tagRecord.state = TagState.InPending;
                         tagRecord.lastUpdate = now;
-                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
+                        console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: InnerAntennaInbound => InPending`);
                     } else {
-                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaInbound => <null> (noise)`);
+                        console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: InnerAntennaInbound => <null> (noise)`);
                         this.tags.delete(tagId);
                     }
                 }
@@ -275,14 +278,14 @@ export class NotificationManager {
 
             case TagState.InnerAntennaOutbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: InnerAntennaOutbound => <null>`);
+                    console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: InnerAntennaOutbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
 
             case TagState.InPending:
                 if (elapsedTime > InboundTransitionTimeout) {
-                    console.warn(`${(new Date()).toISOString()}: Ingress: ${tagId}`);
+                    console.warn(`${(new Date()).toLocaleString()}: Ingress: ${tagId}`);
                     pendingHostEvents.push(this.buildBoatMessage(tagId, false, tagRecord.doorName));
                     this.tags.delete(tagId);
                 }
@@ -290,7 +293,7 @@ export class NotificationManager {
 
             case TagState.OuterAntennaInbound:
                 if (elapsedTime > NullTransitionTimeout) {
-                    console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaInbound => <null>`);
+                    console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: OuterAntennaInbound => <null>`);
                     this.tags.delete(tagId);
                 }
                 break;
@@ -301,9 +304,9 @@ export class NotificationManager {
                     if (tagRecord.readsByOuterAntenna >= MinimumOuterReadCount) {
                         tagRecord.state = TagState.OutPending;
                         tagRecord.lastUpdate = now;
-                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
+                        console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: OuterAntennaOutbound => OutPending`);
                     } else {
-                        console.warn(`${(new Date()).toISOString()}: state change: ${tagId}: OuterAntennaOutbound => <null> (noise)`);
+                        console.warn(`${(new Date()).toLocaleString()}: state change: ${tagId}: OuterAntennaOutbound => <null> (noise)`);
                         this.tags.delete(tagId);
                     }
                 }
@@ -311,7 +314,7 @@ export class NotificationManager {
 
             case TagState.OutPending:
                 if (elapsedTime > OutboundTransitionTimeout) {
-                    console.warn(`${(new Date()).toISOString()}: Egress:  ${tagId}`);
+                    console.warn(`${(new Date()).toLocaleString()}: Egress:  ${tagId}`);
                     pendingHostEvents.push(this.buildBoatMessage(tagId, true, tagRecord.doorName));
                     this.tags.delete(tagId);
                 }
@@ -322,7 +325,7 @@ export class NotificationManager {
     private buildBoatMessage(tagId: string, isEgress: boolean, doorName: string): IHostEvent {
         return {
             EPC: tagId,
-            ReadTime: (new Date()).toISOString(),
+            ReadTime: (new Date()).toLocaleString(),
             Direction: isEgress ? "OUT" : "IN",
             Location: this.config.clubId,
             ReadZone: doorName
@@ -341,7 +344,7 @@ export class NotificationManager {
                 body: JSON.stringify(messages)
             }, (error: any, response: request.RequestResponse, body: any): void => {
                 if (response.statusCode !== 200) {
-                    console.error(`${(new Date()).toISOString()}: Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
+                    console.error(`${(new Date()).toLocaleString()}: Delivery to cloud service failed (status=${response.statusCode}) -- will retry`);
                     console.error(`body = ${response.body}`);
                     this.sendBoatMessages(messages, retryCount + 1);
                 }

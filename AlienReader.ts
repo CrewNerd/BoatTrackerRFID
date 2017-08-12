@@ -1,7 +1,7 @@
 import * as net from "net";
 import { RfidReader } from "./RfidReader";
 import { IConfig, IReaderConfig } from "./ConfigManager";
-import { Notification, NotificationManager } from "./NotificationManager";
+import { Notification, AntennaType, NotificationManager } from "./NotificationManager";
 
 enum State {
     Disconnected,
@@ -163,16 +163,25 @@ export class AlienReader extends RfidReader {
         "AcqG2AntennaCombina=OFF",
         "AcqG2Session=0",
         "TagListAntennaCombine=off",
-        "NotifyMode=on",
-        "NotifyTrigger=TrueFalse",
-        "TagListCustomFormat=${TIME2},%N,%A,%k,%m",
-        "NotifyFormat=Custom",
+
+        // If using tag streaming
+        "TagStreamFormat=Custom",
+        "TagStreamCustomFormat=${TIME2},%N,%A,%k,%m",
+        "TagStreamKeepAliveTime=60",
+        "StreamHeader=OFF",
+        "TagStreamMode=ON",
+
+        // If using Auto-mode and Notify-mode
         "AutoModeReset",
-        "AutoStopTimer=250",
-        "AutoAction=Acquire",
-        "AutoStartTrigger=0 0",
-        "AutoStartPause=0",
-        "AutoMode=on"       // should be last
+        // "NotifyMode=on",
+        // "NotifyTrigger=TrueFalse",
+        // "TagListCustomFormat=${TIME2},%N,%A,%k,%m",
+        // "NotifyFormat=Custom",
+        // "AutoStopTimer=250",
+        // "AutoAction=Acquire",
+        // "AutoStartTrigger=0 0",
+        // "AutoStartPause=0",
+        // "AutoMode=on"       // should be last
     ];
 
     private async RunSetup(): Promise<void> {
@@ -184,7 +193,10 @@ export class AlienReader extends RfidReader {
             // send the variable commands
             output = await this.RunCommand(`ReaderName=${this.readerConfig.name}`);
             output = await this.RunCommand(`AntennaSequence=${this.readerConfig.antennas.join(" ")}`);
+
+            // only one mode should actually be turned on
             output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienReader.NotifyPort}`);
+            output = await this.RunCommand(`TagStreamAddress=${this.client.localAddress}:${AlienReader.NotifyPort}`);
 
             // send the fixed commands
             for (const command of this.setupCmds) {
@@ -252,17 +264,19 @@ export class AlienReader extends RfidReader {
             const fields: string[] = rawNotification.split(",");
 
             if (fields.length === 5) {
-                notifications.push(new Notification(
-                    this.readerConfig,
-                    fields[3],
-                    Number(fields[2]),
-                    Number(fields[4])
-                ));
+                const tagId: string = fields[3];
+                const antenna: number = Number(fields[2]);
+                const rssi: number = Number(fields[4]);
+
+                let notification:Notification = new Notification(this.readerConfig, tagId, antenna, rssi);
+
+                if (notification.AntennaType == AntennaType.Inner && notification.rssi < -71.0) {
+                    // ignore weak reads on the inner antenna
+                } else {
+                    notifications.push(notification);
+                }
             }
         }
-
-        // todo: look for multiple reads of the same tag and select the antenna
-        // with the highest rssi for the tag.
 
         this.notifMgr.processNotifications(notifications);
     }
