@@ -50,6 +50,8 @@ export class AlienReader extends RfidReader {
     private responseBuffer: string = "";
 
     private server: net.Server;
+    private timer: NodeJS.Timer;
+
     //private notificationCounter: number = 0;
 
     private onConnect(): void {
@@ -158,30 +160,28 @@ export class AlienReader extends RfidReader {
     }
 
     private setupCmds: string[] = [
+        // acquire parameters
         "AcquireMode=Inventory",
         "AcqG2Q=1",
-        "AcqG2AntennaCombina=OFF",
+        "AcqG2AntennaCombine=OFF",
         "AcqG2Session=0",
         "TagListAntennaCombine=off",
 
-        // If using tag streaming
+        // tag streaming setup
         "TagStreamFormat=Custom",
         "TagStreamCustomFormat=${TIME2},%N,%A,%k,%m",
         "TagStreamKeepAliveTime=60",
         "StreamHeader=OFF",
         "TagStreamMode=ON",
+        "NotifyMode=off",
 
-        // If using Auto-mode and Notify-mode
+        // auto-mode set for continuous reading
         "AutoModeReset",
-        // "NotifyMode=on",
-        // "NotifyTrigger=TrueFalse",
-        // "TagListCustomFormat=${TIME2},%N,%A,%k,%m",
-        // "NotifyFormat=Custom",
-        // "AutoStopTimer=250",
-        // "AutoAction=Acquire",
-        // "AutoStartTrigger=0 0",
-        // "AutoStartPause=0",
-        // "AutoMode=on"       // should be last
+        "AutoStopTimer=0",
+        "AutoAction=Acquire",
+        "AutoStartTrigger=0 0",
+        "AutoStartPause=0",
+        "AutoMode=on"
     ];
 
     private async RunSetup(): Promise<void> {
@@ -193,9 +193,6 @@ export class AlienReader extends RfidReader {
             // send the variable commands
             output = await this.RunCommand(`ReaderName=${this.readerConfig.name}`);
             output = await this.RunCommand(`AntennaSequence=${this.readerConfig.antennas.join(" ")}`);
-
-            // only one mode should actually be turned on
-            output = await this.RunCommand(`NotifyAddress=${this.client.localAddress}:${AlienReader.NotifyPort}`);
             output = await this.RunCommand(`TagStreamAddress=${this.client.localAddress}:${AlienReader.NotifyPort}`);
 
             // send the fixed commands
@@ -240,9 +237,9 @@ export class AlienReader extends RfidReader {
                     }
                 }
 
-                // the notifications list may be empty. we still need to call the notification
-                // manager so it can process any pending timeouts.
-                this.dispatchNotifications(notifications);
+                if (notifications.length > 0) {
+                    this.dispatchNotifications(notifications);
+                }
             });
         });
 
@@ -251,6 +248,8 @@ export class AlienReader extends RfidReader {
         });
 
         this.server.listen(AlienReader.NotifyPort, () => console.warn("Notification server listening..."));
+
+        this.timer = setInterval(() => this.notifMgr.processTimeouts(), 250);
     }
 
     /**
@@ -269,12 +268,7 @@ export class AlienReader extends RfidReader {
                 const rssi: number = Number(fields[4]);
 
                 let notification:Notification = new Notification(this.readerConfig, tagId, antenna, rssi);
-
-                if (notification.AntennaType == AntennaType.Inner && notification.rssi < -71.0) {
-                    // ignore weak reads on the inner antenna
-                } else {
-                    notifications.push(notification);
-                }
+                notifications.push(notification);
             }
         }
 
@@ -284,5 +278,6 @@ export class AlienReader extends RfidReader {
     public StopReader():void {
         this.server.close();
         this.client.destroy();
+        clearInterval(this.timer);
     }
 }

@@ -80,7 +80,7 @@ const InboundTransitionTimeout: number = 3000;
 // the number of reads by the outer antenna before we consider a transition to be real.
 // boats may live near the inner antenna, but the only time we should get multiple hits
 // on the outer antenna is when real movement is happening.
-const MinimumOuterReadCount: number = 2;
+const MinimumOuterReadCount: number = 3;
 
 /** used to track tags that have been seen recently by the reader */
 class TagRecord {
@@ -134,8 +134,6 @@ export class NotificationManager {
                 // ignore notifications with invalid formats
             }
         });
-
-        this.processTimeouts();
     }
 
     /** Process a read event for a tag. Change the tag state appropriately based on the
@@ -143,7 +141,7 @@ export class NotificationManager {
      */
     private processTagRead(n: Notification): void {
         // verbose logging
-        console.warn(`${(new Date()).toLocaleString()}: tag read: ${n.tagId}, antenna=${n.antenna}, rssi=${n.rssi}`);
+        // console.warn(`${(new Date()).toLocaleString()}: tag read: ${n.tagId}, antenna=${n.antenna}, rssi=${n.rssi}`);
 
         // if the tag isn't being tracked, set its initial state.
         const initialState: TagState = n.AntennaType === AntennaType.Inner ? TagState.InnerAntennaOutbound : TagState.OuterAntennaInbound;
@@ -245,7 +243,7 @@ export class NotificationManager {
     }
 
     /** Check all recently-observed tags for timeout conditions. */
-    private processTimeouts(): void {
+    public processTimeouts(): void {
         const now: number = Date.now();
 
         let pendingHostEvents: IHostEvent[] = [];
