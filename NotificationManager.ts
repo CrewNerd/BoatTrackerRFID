@@ -80,7 +80,7 @@ const InboundTransitionTimeout: number = 3000;
 // the number of reads by the outer antenna before we consider a transition to be real.
 // boats may live near the inner antenna, but the only time we should get multiple hits
 // on the outer antenna is when real movement is happening.
-const MinimumOuterReadCount: number = 2;
+const MinimumOuterReadCount: number = 3;
 
 /** used to track tags that have been seen recently by the reader */
 class TagRecord {
@@ -150,7 +150,7 @@ export class NotificationManager {
                 n.DoorName,
                 Date.now()
             ));
-            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: unseen => ${TagState[initialState]}`);
+            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: unseen => ${TagState[initialState]} (rssi=${n.rssi})`);
             return;
         }
 
@@ -237,7 +237,7 @@ export class NotificationManager {
         }
 
         if (oldState !== tagRecord.state) {
-            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]}`);
+            console.warn(`${(new Date()).toISOString()}: state change: ${n.tagId}: ${TagState[oldState]} => ${TagState[tagRecord.state]} (rssi=${n.rssi})`);
         }
     }
 
