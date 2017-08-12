@@ -80,7 +80,7 @@ const InboundTransitionTimeout: number = 3000;
 // the number of reads by the outer antenna before we consider a transition to be real.
 // boats may live near the inner antenna, but the only time we should get multiple hits
 // on the outer antenna is when real movement is happening.
-const MinimumOuterReadCount: number = 3;
+const MinimumOuterReadCount: number = 2;
 
 /** used to track tags that have been seen recently by the reader */
 class TagRecord {

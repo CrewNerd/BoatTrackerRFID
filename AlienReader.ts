@@ -159,7 +159,7 @@ export class AlienReader extends RfidReader {
 
     private setupCmds: string[] = [
         "AcquireMode=Inventory",
-        "AcqG2Q=2",
+        "AcqG2Q=1",
         "AcqG2AntennaCombina=OFF",
         "AcqG2Session=0",
         "TagListAntennaCombine=off",
