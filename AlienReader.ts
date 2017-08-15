@@ -274,9 +274,9 @@ export class AlienReader extends RfidReader {
                 notifications.push(notification);
 
                 if (antenna === 0) {
-                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},${rssi},`);
+                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},${rssi},\r\n`);
                 } else {
-                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},,${rssi}`);
+                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},,${rssi}\r\n`);
                 }
             }
         }
