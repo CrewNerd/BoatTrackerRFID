@@ -1,4 +1,5 @@
 import * as net from "net";
+import * as fs from "fs";
 import { RfidReader } from "./RfidReader";
 import { IConfig, IReaderConfig } from "./ConfigManager";
 import { Notification, AntennaType, NotificationManager } from "./NotificationManager";
@@ -38,6 +39,7 @@ export class AlienReader extends RfidReader {
         this.notifMgr = new NotificationManager(this.config, this.readerConfig);
     }
 
+    private logFile: number;
     private notifMgr: NotificationManager;
 
     private client: net.Socket;
@@ -208,6 +210,7 @@ export class AlienReader extends RfidReader {
     }
 
     public async StartReader(): Promise<void> {
+        this.logFile = fs.openSync("readlog.csv", "a");
         await this.RunSetup();
 
         this.server = net.createServer((socket: net.Socket) => {
@@ -269,6 +272,12 @@ export class AlienReader extends RfidReader {
 
                 let notification:Notification = new Notification(this.readerConfig, tagId, antenna, rssi);
                 notifications.push(notification);
+
+                if (antenna === 0) {
+                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},${rssi},`);
+                } else {
+                    fs.writeSync(this.logFile, `${(new Date()).toUTCString()},${tagId},,${rssi}`);
+                }
             }
         }
 
@@ -279,5 +288,6 @@ export class AlienReader extends RfidReader {
         this.server.close();
         this.client.destroy();
         clearInterval(this.timer);
+        fs.closeSync(this.logFile);
     }
 }
